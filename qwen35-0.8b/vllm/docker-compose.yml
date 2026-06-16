@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  vllm-qwen35-0.8b:
+    image: vllm/vllm-openai:v0.17.0
+    container_name: qwen35-0.8b
+    gpus: all
+    restart: always
+
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+
+    command: >
+      --model Qwen/Qwen3.5-0.8B
+      --language-model-only
+      --reasoning-parser qwen3
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_coder
+      --performance-mode interactivity
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.90
+      --max-num-batched-tokens 512
+      --max-num-seqs 16
+      --kv-cache-dtype fp8
+      --max-model-len 4096
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    build: ./gateway
+    container_name: fastapi-gateway
+    restart: always
+
+    depends_on:
+      - vllm-qwen35-0.8b
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    restart: always
+
+    ports:
+      - "80:80"
+
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+    depends_on:
+      - gateway
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"

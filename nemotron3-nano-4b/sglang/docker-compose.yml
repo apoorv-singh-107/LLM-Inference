@@ -1,0 +1,67 @@
+services:
+  sglang-nemotron3-nano-4b:
+    image: lmsysorg/sglang:latest
+    container_name: sglang-nemotron3-nano-4b
+    gpus: all
+    restart: always
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - SGLANG_ENABLE_SPEC_V2=1
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+
+    entrypoint: sglang serve
+
+    command: --model-path nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16
+      --trust-remote-code
+      --tp 1
+      --kv-cache-dtype bf16
+      --reasoning-parser nemotron_3
+      --tool-call-parser qwen3_coder
+      --host 0.0.0.0
+      --port "8000"
+
+    shm_size: "16gb"
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    build: ./gateway
+    container_name: fastapi-gateway
+    restart: always
+
+    depends_on:
+      - sglang-nemotron3-nano-4b
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    restart: always
+
+    ports:
+      - "80:80"
+
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+    depends_on:
+      - gateway
+
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
